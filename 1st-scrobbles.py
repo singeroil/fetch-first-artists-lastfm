@@ -4,6 +4,7 @@ import asyncio
 import pandas as pd
 from datetime import datetime, timezone
 from tzlocal import get_localzone
+from io import BytesIO
 import logging
 
 API_KEY = st.secrets["LASTFM_API_KEY"]
@@ -81,7 +82,7 @@ def get_first_scrobble_dates(scrobbles):
         artist = scrobble['artist']
         scrobble_date = scrobble['date']
         track = scrobble['track']
-        album = scrobble['album']
+        album = scrobbles['album']
 
         if artist not in artist_first_scrobble or scrobble_date < artist_first_scrobble[artist]['date']:
             artist_first_scrobble[artist] = {
@@ -92,14 +93,11 @@ def get_first_scrobble_dates(scrobbles):
 
     return artist_first_scrobble
 
-def save_to_excel(artist_first_scrobble, username, filename=None):
-    if filename is None:
-        filename = f'{username}_1st_scrobbles.xlsx'
-    
+def save_to_excel(artist_first_scrobbles, username, file_like_object):
     rows = []
     local_tz = get_localzone()
-    
-    for artist, details in artist_first_scrobble.items():
+
+    for artist, details in artist_first_scrobbles.items():
         utc_date = datetime.fromtimestamp(details['date'], tz=timezone.utc)
         local_date = utc_date.astimezone(local_tz)
         readable_date = local_date.strftime('%Y-%m-%d %H:%M:%S')
@@ -107,9 +105,9 @@ def save_to_excel(artist_first_scrobble, username, filename=None):
 
     df = pd.DataFrame(rows, columns=['Artist', 'First Track', 'First Album', 'First Scrobbled Date'])
     df.sort_values(by='First Scrobbled Date', inplace=True)
-    df.to_excel(filename, index=False)
+    df.to_excel(file_like_object, index=False)
 
-    logging.info(f"Data saved to '{filename}'")
+    logging.info(f"Data saved to '{username}_1st_scrobbles.xlsx'")
 
 async def main():
     st.title("First Scrobbles Tracker")
@@ -130,10 +128,19 @@ async def main():
                     
                     progress_placeholder.empty()  # Remove the processing status
 
-                    if st.button("Download as Excel"):
-                        save_to_excel(artist_scrobbles, username)  # Save to Excel
-                        st.success(f"Results saved as {username}_1st_scrobbles.xlsx!")
-                        
+                    # Convert the results to a DataFrame and save to Excel in-memory
+                    output = BytesIO()
+                    save_to_excel(artist_scrobbles, username, output)
+                    output.seek(0)
+                    
+                    # Provide download button
+                    st.download_button(
+                        label="Download as Excel",
+                        data=output,
+                        file_name=f'{username}_1st_scrobbles.xlsx',
+                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                    )
+                    
                 except Exception as e:
                     st.error(f"Error fetching data: {str(e)}")
 
