@@ -37,11 +37,12 @@ st.markdown("""
     """, unsafe_allow_html=True)
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
-LIMIT = 200
+
+LIMIT = 200         # Increased to maximum allowed by Last.fm API
 MAX_RETRIES = 3
 RATE_LIMIT_DELAY = 1  # seconds between requests
-BATCH_SIZE = 5       # Number of pages to fetch at once
-BATCH_DELAY = 3       # Delay between each batch in seconds
+BATCH_SIZE = 5       # Optimized for 5 concurrent page requests
+BATCH_DELAY = 2      # Reduced delay between batches for faster fetching
 
 # Generate the filename with latest scrobble timestamp
 def generate_filename(username, latest_timestamp):
@@ -83,15 +84,16 @@ async def fetch_in_batches(session, url, total_pages):
             progress_bar.progress(int(idx / total_pages * 100))  # Update progress bar
 
         logging.info(f"Completed batch {i} to {min(i + BATCH_SIZE, total_pages)} of {total_pages}")
-
         await asyncio.sleep(BATCH_DELAY)  # Delay between batches
 
     progress_bar.progress(100)  # Ensure progress bar is set to 100%
     return responses
 
 
-async def get_scrobbles(username, limit=200, from_timestamp=None):
-    url = f"https://ws.audioscrobbler.com/2.0/?method=user.getRecentTracks&user={username}&api_key={API_KEY}&format=json&limit={LIMIT}"
+# Caching API responses to reduce redundant API calls for the same user
+@st.cache_data(ttl=3600)  # Cache for 1 hour
+async def get_scrobbles_cached(username, limit=200, from_timestamp=None):
+    url = f"https://ws.audioscrobbler.com/2.0/?method=user.getRecentTracks&user={username}&api_key={API_KEY}&format=json&limit={limit}"
     
     if from_timestamp:
         url += f"&from={from_timestamp}"  # Fetch from specific timestamp if provided
@@ -190,7 +192,7 @@ async def main():
         if st.button("Fetch Now ▼"):
             with st.spinner(''):
                 try:
-                    all_scrobbles = await get_scrobbles(username, from_timestamp=from_timestamp or None)
+                    all_scrobbles = await get_scrobbles_cached(username, from_timestamp=from_timestamp or None)
                     artist_scrobbles = get_first_scrobble_dates(all_scrobbles)
 
                     # Get the latest scrobble's timestamp for filename
