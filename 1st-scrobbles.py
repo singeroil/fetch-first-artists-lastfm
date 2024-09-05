@@ -36,6 +36,16 @@ async def fetch_page(session, url, page, retries=0):
         else:
             raise
 
+async def get_total_pages(username):
+    url = f"https://ws.audioscrobbler.com/2.0/?method=user.getRecentTracks&user={username}&api_key={API_KEY}&format=json&limit={LIMIT}"
+    async with aiohttp.ClientSession() as session:
+        first_page = await fetch_page(session, url, 1)
+        if not first_page or 'recenttracks' not in first_page:
+            raise ValueError("Failed to retrieve initial page or unexpected format")
+
+        total_pages = int(first_page['recenttracks']['@attr']['totalPages'])
+        return total_pages
+
 async def get_scrobbles(username, limit=200, st_progress_placeholder=None):
     url = f"https://ws.audioscrobbler.com/2.0/?method=user.getRecentTracks&user={username}&api_key={API_KEY}&format=json&limit={limit}"
     async with aiohttp.ClientSession() as session:
@@ -51,31 +61,31 @@ async def get_scrobbles(username, limit=200, st_progress_placeholder=None):
 
         all_scrobbles = []
         for idx, response in enumerate(responses, start=1):
-            if st_progress_placeholder:
-                # Ensure progress is within [0, 100]
-                progress_percentage = (idx / total_pages) * 100
-                st_progress_placeholder.progress(int(progress_percentage), f"Processing page {idx} of {total_pages}")
-            logging.info(f"Processing page {idx} of {total_pages}")
-            if not response or 'recenttracks' not in response:
+            if isinstance(response, dict) and 'recenttracks' in response:
+                if st_progress_placeholder:
+                    # Ensure progress is within [0, 100]
+                    progress_percentage = (idx / total_pages) * 100
+                    st_progress_placeholder.progress(int(progress_percentage), f"Processing page {idx} of {total_pages}")
+                logging.info(f"Processing page {idx} of {total_pages}")
+
+                tracks = response['recenttracks']['track']
+                if isinstance(tracks, dict):  # Only one track returned
+                    tracks = [tracks]
+
+                for track in tracks:
+                    if 'date' in track:
+                        artist_name = track['artist']['#text']
+                        track_name = track['name']
+                        album_name = track['album']['#text'] if 'album' in track else 'Unknown'
+                        scrobble_date = int(track['date']['uts'])
+                        all_scrobbles.append({
+                            'artist': artist_name,
+                            'track': track_name,
+                            'album': album_name,
+                            'date': scrobble_date
+                        })
+            else:
                 logging.warning(f"Unexpected response format on page {idx}")
-                continue
-
-            tracks = response['recenttracks']['track']
-            if isinstance(tracks, dict):  # Only one track returned
-                tracks = [tracks]
-
-            for track in tracks:
-                if 'date' in track:
-                    artist_name = track['artist']['#text']
-                    track_name = track['name']
-                    album_name = track['album']['#text'] if 'album' in track else 'Unknown'
-                    scrobble_date = int(track['date']['uts'])
-                    all_scrobbles.append({
-                        'artist': artist_name,
-                        'track': track_name,
-                        'album': album_name,
-                        'date': scrobble_date
-                    })
 
         return all_scrobbles
 
@@ -118,7 +128,12 @@ def main():
     username = st.text_input("Enter your Last.fm username", "")
 
     if username:
-        st.write(f"Fetching data for {username}...")
+        # Display total pages count if username is provided
+        try:
+            total_pages = asyncio.run(get_total_pages(username))
+            st.write(f"Total pages found: {total_pages}")
+        except Exception as e:
+            st.error(f"Error fetching total pages: {str(e)}")
 
         if st.button("Get First Scrobbles"):
             with st.spinner('Processing...'):
