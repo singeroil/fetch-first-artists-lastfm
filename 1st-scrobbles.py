@@ -52,9 +52,9 @@ async def get_scrobbles(username, limit=200, st_progress_placeholder=None):
         all_scrobbles = []
         for idx, response in enumerate(responses, start=1):
             if st_progress_placeholder:
-                # Scale progress to the range [0, 100]
+                # Ensure progress is within [0, 100]
                 progress_percentage = (idx / total_pages) * 100
-                st_progress_placeholder.progress(progress_percentage, f"Processing page {idx} of {total_pages}")
+                st_progress_placeholder.progress(int(progress_percentage), f"Processing page {idx} of {total_pages}")
             logging.info(f"Processing page {idx} of {total_pages}")
             if not response or 'recenttracks' not in response:
                 logging.warning(f"Unexpected response format on page {idx}")
