@@ -43,12 +43,17 @@ async def get_total_pages(username):
         if not first_page or 'recenttracks' not in first_page:
             raise ValueError("Failed to retrieve initial page or unexpected format")
 
+        # Log the response to inspect its format
+        logging.info(f"First page response: {first_page}")
+
         # Ensure '@attr' and 'totalPages' are correctly accessed
-        total_pages = first_page['recenttracks']['@attr'].get('totalPages', 1)
+        attr = first_page.get('recenttracks', {}).get('@attr', {})
+        total_pages = attr.get('totalPages', None)
+        
         if isinstance(total_pages, int):
             return total_pages
         else:
-            raise ValueError("Total pages value is not an integer")
+            raise ValueError(f"Total pages value is not an integer: {total_pages}")
 
 async def get_scrobbles(username, limit=LIMIT, st_progress_placeholder=None):
     url = f"https://ws.audioscrobbler.com/2.0/?method=user.getRecentTracks&user={username}&api_key={API_KEY}&format=json&limit={limit}"
@@ -57,9 +62,10 @@ async def get_scrobbles(username, limit=LIMIT, st_progress_placeholder=None):
         if not first_page or 'recenttracks' not in first_page:
             raise ValueError("Failed to retrieve initial page or unexpected format")
 
-        total_pages = first_page['recenttracks']['@attr'].get('totalPages', 1)
+        attr = first_page.get('recenttracks', {}).get('@attr', {})
+        total_pages = attr.get('totalPages', 1)
         if not isinstance(total_pages, int):
-            raise ValueError("Total pages value is not an integer")
+            raise ValueError(f"Total pages value is not an integer: {total_pages}")
 
         logging.info(f"Total pages: {total_pages}")
 
