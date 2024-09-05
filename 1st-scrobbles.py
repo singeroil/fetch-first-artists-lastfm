@@ -40,8 +40,8 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 LIMIT = 50
 MAX_RETRIES = 3
 RATE_LIMIT_DELAY = 1  # seconds between requests
-BATCH_SIZE = 25       # Number of pages to fetch at once
-BATCH_DELAY = 2       # Delay between each batch in seconds
+BATCH_SIZE = 10       # Number of pages to fetch at once
+BATCH_DELAY = 3       # Delay between each batch in seconds
 
 # Generate the filename with latest scrobble timestamp
 def generate_filename(username, latest_timestamp):
@@ -183,7 +183,7 @@ async def main():
 
     if username:
         # Small triangle button for fetching scrobbles
-        if st.button("▼"):
+        if st.button("Fetch Now ▼"):
             with st.spinner(''):
                 try:
                     all_scrobbles = await get_scrobbles(username, from_timestamp=from_timestamp or None)
