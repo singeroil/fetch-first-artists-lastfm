@@ -37,10 +37,10 @@ st.markdown("""
     """, unsafe_allow_html=True)
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
-LIMIT = 50
+LIMIT = 200
 MAX_RETRIES = 3
 RATE_LIMIT_DELAY = 1  # seconds between requests
-BATCH_SIZE = 10       # Number of pages to fetch at once
+BATCH_SIZE = 5       # Number of pages to fetch at once
 BATCH_DELAY = 3       # Delay between each batch in seconds
 
 # Generate the filename with latest scrobble timestamp
@@ -91,7 +91,7 @@ async def fetch_in_batches(session, url, total_pages):
 
 
 async def get_scrobbles(username, limit=200, from_timestamp=None):
-    url = f"https://ws.audioscrobbler.com/2.0/?method=user.getRecentTracks&user={username}&api_key={API_KEY}&format=json&limit={limit}"
+    url = f"https://ws.audioscrobbler.com/2.0/?method=user.getRecentTracks&user={username}&api_key={API_KEY}&format=json&limit={LIMIT}"
     
     if from_timestamp:
         url += f"&from={from_timestamp}"  # Fetch from specific timestamp if provided
@@ -194,7 +194,7 @@ async def main():
                     artist_scrobbles = get_first_scrobble_dates(all_scrobbles)
 
                     # Get the latest scrobble's timestamp for filename
-                    latest_timestamp = max([details['date'] for details in artist_scrobbles.values()])
+                    latest_timestamp = max([details['date'] for details in artist_scrobbles.values() if isinstance(details, dict) and 'date' in details and isinstance(details['date'], int)])
 
                     output = BytesIO()
                     save_to_excel(artist_scrobbles, username, output)
