@@ -43,6 +43,7 @@ async def get_total_pages(username):
         if not first_page or 'recenttracks' not in first_page:
             raise ValueError("Failed to retrieve initial page or unexpected format")
 
+        # Ensure '@attr' and 'totalPages' are correctly accessed
         total_pages = int(first_page['recenttracks']['@attr']['totalPages'])
         return total_pages
 
@@ -64,7 +65,7 @@ async def get_scrobbles(username, limit=200, st_progress_placeholder=None):
             if isinstance(response, dict) and 'recenttracks' in response:
                 if st_progress_placeholder:
                     # Ensure progress is within [0, 100]
-                    progress_percentage = (idx / total_pages) * 100
+                    progress_percentage = min((idx / total_pages) * 100, 100)
                     st_progress_placeholder.progress(int(progress_percentage), f"Processing page {idx} of {total_pages}")
                 logging.info(f"Processing page {idx} of {total_pages}")
 
