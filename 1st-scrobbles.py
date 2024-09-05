@@ -15,6 +15,7 @@ LIMIT = 200
 MAX_RETRIES = 3
 RATE_LIMIT_DELAY = 1  # seconds between requests
 
+
 async def fetch_page(session, url, page, retries=0):
     try:
         await asyncio.sleep(RATE_LIMIT_DELAY)  # Rate limiting
@@ -36,6 +37,7 @@ async def fetch_page(session, url, page, retries=0):
         else:
             raise
 
+
 async def get_scrobbles(username, limit=200):
     url = f"https://ws.audioscrobbler.com/2.0/?method=user.getRecentTracks&user={username}&api_key={API_KEY}&format=json&limit={limit}"
     async with aiohttp.ClientSession() as session:
@@ -46,11 +48,18 @@ async def get_scrobbles(username, limit=200):
         total_pages = int(first_page['recenttracks']['@attr']['totalPages'])
         logging.info(f"Total pages: {total_pages}")
 
+        # Update progress bar for total pages
+        total_pages_progress = st.progress(0)
+        total_pages_progress.label(f"Processing Pages: 0/{total_pages}")
+
         tasks = [fetch_page(session, url, page) for page in range(1, total_pages + 1)]
         responses = await asyncio.gather(*tasks)
 
         all_scrobbles = []
         for idx, response in enumerate(responses, start=1):
+            # Update progress bar for total pages
+            total_pages_progress.progress(idx)
+
             logging.info(f"Processing page {idx} of {total_pages}")
             if not response or 'recenttracks' not in response:
                 logging.warning(f"Unexpected response format on page {idx}")
@@ -75,6 +84,7 @@ async def get_scrobbles(username, limit=200):
 
         return all_scrobbles
 
+
 def get_first_scrobble_dates(scrobbles):
     artist_first_scrobble = {}
 
@@ -93,6 +103,7 @@ def get_first_scrobble_dates(scrobbles):
 
     return artist_first_scrobble
 
+
 def save_to_excel(artist_first_scrobbles, username, file_like_object):
     rows = []
     local_tz = get_localzone()
@@ -109,6 +120,7 @@ def save_to_excel(artist_first_scrobbles, username, file_like_object):
 
     logging.info(f"Data saved to '{username}_1st_scrobbles.xlsx'")
 
+
 async def main():
     st.title("First Scrobbles Tracker")
     username = st.text_input("Enter your Last.fm username", "")
@@ -121,18 +133,23 @@ async def main():
                 try:
                     all_scrobbles = await get_scrobbles(username)
                     artist_scrobbles = get_first_scrobble_dates(all_scrobbles)
-                    
-                    # Show processing status with a placeholder
-                    progress_placeholder = st.empty()
-                    progress_placeholder.write("Processing results...")
-                    
-                    progress_placeholder.empty()  # Remove the processing status
+
+                    # Update progress bar for total artists
+                    total_artists_progress = st.progress(0)
+                    total_artists_progress.label(f"Processing Artists: 0/{len(artist_scrobbles)}")
+
+                    for i, (artist, _) in enumerate(artist_scrobbles.items()):
+                        # Update progress bar for total artists
+                        total_artists_progress.progress(i + 1)
+
+                    # Remove the processing status
+                    total_artists_progress.empty()
 
                     # Convert the results to a DataFrame and save to Excel in-memory
                     output = BytesIO()
                     save_to_excel(artist_scrobbles, username, output)
                     output.seek(0)
-                    
+
                     # Provide download button
                     st.download_button(
                         label="Download as Excel",
@@ -140,9 +157,10 @@ async def main():
                         file_name=f'{username}_1st_scrobbles.xlsx',
                         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                     )
-                    
+
                 except Exception as e:
                     st.error(f"Error fetching data: {str(e)}")
+
 
 if __name__ == "__main__":
     asyncio.run(main())
