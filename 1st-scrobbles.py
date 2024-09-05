@@ -9,9 +9,25 @@ import logging
 
 API_KEY = st.secrets["LASTFM_API_KEY"]
 
-# Configure logging
+# Inject custom CSS for the download button
+st.markdown("""
+    <style>
+    .stDownloadButton button {
+        background-color: #4CAF50;  /* Green */
+        color: white;
+        border-radius: 4px;
+        border: none;
+        padding: 8px 16px;
+    }
+    .stDownloadButton button:hover {
+        background-color: #45a049;
+        color: white;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
-LIMIT = 200
+LIMIT = 50
 MAX_RETRIES = 3
 RATE_LIMIT_DELAY = 1  # seconds between requests
 
@@ -44,6 +60,7 @@ async def get_scrobbles(username, limit=200):
             raise ValueError("Failed to retrieve initial page or unexpected format")
 
         total_pages = int(first_page['recenttracks']['@attr']['totalPages'])
+        st.write(f"Total pages to process: {total_pages}")  # Display total pages
         logging.info(f"Total pages: {total_pages}")
 
         tasks = [fetch_page(session, url, page) for page in range(1, total_pages + 1)]
@@ -68,10 +85,10 @@ async def get_scrobbles(username, limit=200):
 
             for track in tracks:
                 if 'date' in track:
-                    artist_name = track['artist']['#text']
-                    track_name = track['name']
-                    album_name = track['album']['#text'] if 'album' in track else 'Unknown'
-                    scrobble_date = int(track['date']['uts'])
+                    artist_name = track.get('artist', {}).get('#text', 'Unknown')
+                    track_name = track.get('name', 'Unknown')
+                    album_name = track.get('album', {}).get('#text', 'Unknown')
+                    scrobble_date = int(track.get('date', {}).get('uts', 0))  # Default to 0 if missing
                     all_scrobbles.append({
                         'artist': artist_name,
                         'track': track_name,
@@ -104,13 +121,13 @@ def save_to_excel(artist_first_scrobbles, username, file_like_object):
     rows = []
     local_tz = get_localzone()
 
-    for artist, details in artist_first_scrobbles.items():
+    for idx, (artist, details) in enumerate(artist_first_scrobbles.items(), start=1):
         utc_date = datetime.fromtimestamp(details['date'], tz=timezone.utc)
         local_date = utc_date.astimezone(local_tz)
         readable_date = local_date.strftime('%Y-%m-%d %H:%M:%S')
-        rows.append([artist, details['track'], details['album'], readable_date])
+        rows.append([idx, artist, details['track'], details['album'], readable_date])
 
-    df = pd.DataFrame(rows, columns=['Artist', 'First Track', 'First Album', 'First Scrobbled Date'])
+    df = pd.DataFrame(rows, columns=['#', 'Artist', 'First Track', 'First Album', 'First Scrobbled Date'])
     df.sort_values(by='First Scrobbled Date', inplace=True)
     df.to_excel(file_like_object, index=False)
 
@@ -128,19 +145,12 @@ async def main():
                 try:
                     all_scrobbles = await get_scrobbles(username)
                     artist_scrobbles = get_first_scrobble_dates(all_scrobbles)
-                    
-                    # Show processing status with a placeholder
-                    progress_placeholder = st.empty()
-                    progress_placeholder.write("Processing results...")
-                    
-                    progress_placeholder.empty()  # Remove the processing status
 
-                    # Convert the results to a DataFrame and save to Excel in-memory
                     output = BytesIO()
                     save_to_excel(artist_scrobbles, username, output)
                     output.seek(0)
-                    
-                    # Provide download button
+
+                    # Provide download button with green styling
                     st.download_button(
                         label="Download as Excel",
                         data=output,
