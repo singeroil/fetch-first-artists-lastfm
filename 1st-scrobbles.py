@@ -82,7 +82,7 @@ def get_first_scrobble_dates(scrobbles):
         artist = scrobble['artist']
         scrobble_date = scrobble['date']
         track = scrobble['track']
-        album = scrobbles['album']
+        album = scrobble['album']
 
         if artist not in artist_first_scrobble or scrobble_date < artist_first_scrobble[artist]['date']:
             artist_first_scrobble[artist] = {
