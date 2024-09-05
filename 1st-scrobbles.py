@@ -103,7 +103,6 @@ async def get_scrobbles(username, limit=200, from_timestamp=None):
 
         total_pages = int(first_page['recenttracks']['@attr']['totalPages'])
         st.write(f"Total pages to process: {total_pages}")
-        st.spinner(text="")  # Keep it clean, spinner is used next to total pages
         logging.info(f"Total pages: {total_pages}")
 
         responses = await fetch_in_batches(session, url, total_pages)
@@ -116,15 +115,20 @@ async def get_scrobbles(username, limit=200, from_timestamp=None):
                 continue
 
             tracks = response['recenttracks']['track']
-            if isinstance(tracks, dict):  # Only one track returned
+            if isinstance(tracks, dict):  # Only one track returned, make it a list
                 tracks = [tracks]
 
             for track in tracks:
-                if isinstance(track, dict) and 'date' in track:
-                    artist_name = track.get('artist', {}).get('#text', 'Unknown') if isinstance(track.get('artist'), dict) else 'Unknown'
+                if isinstance(track, dict):  # Ensure track is a dictionary
+                    artist = track.get('artist', {})
+                    album = track.get('album', {})
+                    date = track.get('date', {})
+
+                    # Ensure artist, album, and date are dictionaries before accessing keys
+                    artist_name = artist.get('#text', 'Unknown') if isinstance(artist, dict) else 'Unknown'
                     track_name = track.get('name', 'Unknown')
-                    album_name = track.get('album', {}).get('#text', 'Unknown') if isinstance(track.get('album'), dict) else 'Unknown'
-                    scrobble_date = int(track.get('date', {}).get('uts', 0)) if isinstance(track.get('date'), dict) else 0
+                    album_name = album.get('#text', 'Unknown') if isinstance(album, dict) else 'Unknown'
+                    scrobble_date = int(date.get('uts', 0)) if isinstance(date, dict) else 0
 
                     all_scrobbles.append({
                         'artist': artist_name,
