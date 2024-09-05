@@ -111,11 +111,7 @@ def save_to_excel(artist_first_scrobble, username, filename=None):
 
     logging.info(f"Data saved to '{filename}'")
 
-def fetch_scrobbles_sync(username):
-    return asyncio.run(get_scrobbles(username))
-
-# Streamlit interface
-def main():
+async def main():
     st.title("First Scrobbles Tracker")
     username = st.text_input("Enter your Last.fm username", "")
 
@@ -123,18 +119,23 @@ def main():
         st.write(f"Fetching data for {username}...")
 
         if st.button("Get First Scrobbles"):
-            try:
-                scrobbles = fetch_scrobbles_sync(username)
-                artist_scrobbles = get_first_scrobble_dates(scrobbles)
-                st.success(f"Found first scrobbles for {len(artist_scrobbles)} artists!")
-                st.write(artist_scrobbles)
-
-                if st.button("Download as Excel"):
-                    save_to_excel(artist_scrobbles, username)  # Save to Excel
-                    st.success(f"Results saved as {username}_1st_scrobbles.xlsx!")
+            with st.spinner('Processing...'):
+                try:
+                    all_scrobbles = await get_scrobbles(username)
+                    artist_scrobbles = get_first_scrobble_dates(all_scrobbles)
                     
-            except Exception as e:
-                st.error(f"Error fetching data: {str(e)}")
+                    # Show processing status with a placeholder
+                    progress_placeholder = st.empty()
+                    progress_placeholder.write("Processing results...")
+                    
+                    progress_placeholder.empty()  # Remove the processing status
+
+                    if st.button("Download as Excel"):
+                        save_to_excel(artist_scrobbles, username)  # Save to Excel
+                        st.success(f"Results saved as {username}_1st_scrobbles.xlsx!")
+                        
+                except Exception as e:
+                    st.error(f"Error fetching data: {str(e)}")
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())
