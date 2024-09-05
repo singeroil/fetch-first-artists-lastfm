@@ -11,7 +11,7 @@ API_KEY = st.secrets["LASTFM_API_KEY"]
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
-LIMIT = 200
+LIMIT = 50  # Reduced limit
 MAX_RETRIES = 3
 RATE_LIMIT_DELAY = 1  # seconds between requests
 
@@ -44,17 +44,23 @@ async def get_total_pages(username):
             raise ValueError("Failed to retrieve initial page or unexpected format")
 
         # Ensure '@attr' and 'totalPages' are correctly accessed
-        total_pages = int(first_page['recenttracks']['@attr']['totalPages'])
-        return total_pages
+        total_pages = first_page['recenttracks']['@attr'].get('totalPages', 1)
+        if isinstance(total_pages, int):
+            return total_pages
+        else:
+            raise ValueError("Total pages value is not an integer")
 
-async def get_scrobbles(username, limit=200, st_progress_placeholder=None):
+async def get_scrobbles(username, limit=LIMIT, st_progress_placeholder=None):
     url = f"https://ws.audioscrobbler.com/2.0/?method=user.getRecentTracks&user={username}&api_key={API_KEY}&format=json&limit={limit}"
     async with aiohttp.ClientSession() as session:
         first_page = await fetch_page(session, url, 1)
         if not first_page or 'recenttracks' not in first_page:
             raise ValueError("Failed to retrieve initial page or unexpected format")
 
-        total_pages = int(first_page['recenttracks']['@attr']['totalPages'])
+        total_pages = first_page['recenttracks']['@attr'].get('totalPages', 1)
+        if not isinstance(total_pages, int):
+            raise ValueError("Total pages value is not an integer")
+
         logging.info(f"Total pages: {total_pages}")
 
         tasks = [fetch_page(session, url, page) for page in range(1, total_pages + 1)]
@@ -69,7 +75,7 @@ async def get_scrobbles(username, limit=200, st_progress_placeholder=None):
                     st_progress_placeholder.progress(int(progress_percentage), f"Processing page {idx} of {total_pages}")
                 logging.info(f"Processing page {idx} of {total_pages}")
 
-                tracks = response['recenttracks']['track']
+                tracks = response['recenttracks'].get('track', [])
                 if isinstance(tracks, dict):  # Only one track returned
                     tracks = [tracks]
 
