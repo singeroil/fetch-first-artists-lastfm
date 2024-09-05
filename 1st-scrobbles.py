@@ -30,6 +30,9 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 LIMIT = 50
 MAX_RETRIES = 3
 RATE_LIMIT_DELAY = 1  # seconds between requests
+BATCH_SIZE = 10        # Number of pages to fetch at once
+BATCH_DELAY = 3        # Delay between each batch in seconds
+
 
 async def fetch_page(session, url, page, retries=0):
     try:
@@ -52,6 +55,29 @@ async def fetch_page(session, url, page, retries=0):
         else:
             raise
 
+
+async def fetch_in_batches(session, url, total_pages):
+    responses = []
+    progress_bar = st.progress(0)  # Initialize progress bar
+
+    for i in range(1, total_pages + 1, BATCH_SIZE):
+        tasks = [fetch_page(session, url, page) for page in range(i, min(i + BATCH_SIZE, total_pages + 1))]
+
+        # Wait for the current batch of tasks to complete
+        for idx, task in enumerate(asyncio.as_completed(tasks), start=i):
+            response = await task
+            responses.append(response)
+            progress_bar.progress(int(idx / total_pages * 100))  # Update progress bar
+
+        logging.info(f"Completed batch {i} to {min(i + BATCH_SIZE, total_pages)} of {total_pages}")
+
+        # Sleep between batches to throttle requests
+        await asyncio.sleep(BATCH_DELAY)
+
+    progress_bar.progress(100)  # Ensure progress bar is set to 100%
+    return responses
+
+
 async def get_scrobbles(username, limit=200):
     url = f"https://ws.audioscrobbler.com/2.0/?method=user.getRecentTracks&user={username}&api_key={API_KEY}&format=json&limit={limit}"
     async with aiohttp.ClientSession() as session:
@@ -63,14 +89,7 @@ async def get_scrobbles(username, limit=200):
         st.write(f"Total pages to process: {total_pages}")  # Display total pages
         logging.info(f"Total pages: {total_pages}")
 
-        tasks = [fetch_page(session, url, page) for page in range(1, total_pages + 1)]
-        
-        progress_bar = st.progress(0)  # Initialize progress bar
-        responses = []
-        for idx, page_task in enumerate(asyncio.as_completed(tasks), start=1):
-            response = await page_task
-            responses.append(response)
-            progress_bar.progress(int(idx / total_pages * 100))  # Update progress bar
+        responses = await fetch_in_batches(session, url, total_pages)
 
         all_scrobbles = []
         for idx, response in enumerate(responses, start=1):
@@ -98,8 +117,8 @@ async def get_scrobbles(username, limit=200):
                         'date': scrobble_date
                     })
 
-        progress_bar.progress(100)  # Ensure progress bar is set to 100%
         return all_scrobbles
+
 
 def get_first_scrobble_dates(scrobbles):
     artist_first_scrobbles = {}
@@ -119,6 +138,7 @@ def get_first_scrobble_dates(scrobbles):
 
     return artist_first_scrobbles
 
+
 def save_to_excel(artist_first_scrobbles, username, file_like_object):
     rows = []
     local_tz = get_localzone()
@@ -134,6 +154,7 @@ def save_to_excel(artist_first_scrobbles, username, file_like_object):
     df.to_excel(file_like_object, index=False)
 
     logging.info(f"Data saved to '{username}_1st_scrobbles.xlsx'")
+
 
 async def main():
     st.title("First Scrobbles Tracker")
