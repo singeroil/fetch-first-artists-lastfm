@@ -52,7 +52,9 @@ async def get_scrobbles(username, limit=200, st_progress_placeholder=None):
         all_scrobbles = []
         for idx, response in enumerate(responses, start=1):
             if st_progress_placeholder:
-                st_progress_placeholder.progress((idx / total_pages) * 100, f"Processing page {idx} of {total_pages}")
+                # Scale progress to the range [0, 100]
+                progress_percentage = (idx / total_pages) * 100
+                st_progress_placeholder.progress(progress_percentage, f"Processing page {idx} of {total_pages}")
             logging.info(f"Processing page {idx} of {total_pages}")
             if not response or 'recenttracks' not in response:
                 logging.warning(f"Unexpected response format on page {idx}")
@@ -78,7 +80,7 @@ async def get_scrobbles(username, limit=200, st_progress_placeholder=None):
         return all_scrobbles
 
 def get_first_scrobble_dates(scrobbles):
-    artist_first_scrobble = {}
+    artist_first_scrobbles = {}
 
     for scrobble in scrobbles:
         artist = scrobble['artist']
@@ -86,14 +88,14 @@ def get_first_scrobble_dates(scrobbles):
         track = scrobble['track']
         album = scrobble['album']
 
-        if artist not in artist_first_scrobble or scrobble_date < artist_first_scrobble[artist]['date']:
-            artist_first_scrobble[artist] = {
+        if artist not in artist_first_scrobbles or scrobble_date < artist_first_scrobbles[artist]['date']:
+            artist_first_scrobbles[artist] = {
                 'date': scrobble_date,
                 'track': track,
                 'album': album
             }
 
-    return artist_first_scrobble
+    return artist_first_scrobbles
 
 def save_to_excel(artist_first_scrobbles, username, file_like_object):
     rows = []
