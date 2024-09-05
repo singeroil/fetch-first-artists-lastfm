@@ -40,7 +40,7 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 LIMIT = 200
 MAX_RETRIES = 3
 RATE_LIMIT_DELAY = 1  # seconds between requests
-BATCH_SIZE = 5       # Number of pages to fetch at once
+BATCH_SIZE = 100       # Number of pages to fetch at once
 BATCH_DELAY = 2       # Delay between each batch in seconds
 
 # Generate the filename with latest scrobble timestamp
