@@ -175,7 +175,7 @@ def save_to_excel(artist_first_scrobbles, username, file_like_object):
 
 
 async def main():
-    st.title("First Scrobbles Tracker")
+    st.title("Initial Scrobble Retriever")
 
     # User input fields
     username = st.text_input("Enter your Last.fm username", "")
@@ -203,9 +203,6 @@ async def main():
                         file_name=generate_filename(username, latest_timestamp),
                         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                     )
-
-                    # Clear inputs after download
-                    st.text_input("Enter your Last.fm username", value="", key="username_clear")
 
                 except Exception as e:
                     st.error(f"Error fetching data: {str(e)}")
