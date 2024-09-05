@@ -84,11 +84,13 @@ async def get_scrobbles(username, limit=200):
                 tracks = [tracks]
 
             for track in tracks:
-                if 'date' in track:
-                    artist_name = track.get('artist', {}).get('#text', 'Unknown')
+                # Defensive handling of track data
+                if isinstance(track, dict) and 'date' in track:
+                    artist_name = track.get('artist', {}).get('#text', 'Unknown') if isinstance(track.get('artist'), dict) else 'Unknown'
                     track_name = track.get('name', 'Unknown')
-                    album_name = track.get('album', {}).get('#text', 'Unknown')
-                    scrobble_date = int(track.get('date', {}).get('uts', 0))  # Default to 0 if missing
+                    album_name = track.get('album', {}).get('#text', 'Unknown') if isinstance(track.get('album'), dict) else 'Unknown'
+                    scrobble_date = int(track.get('date', {}).get('uts', 0)) if isinstance(track.get('date'), dict) else 0
+
                     all_scrobbles.append({
                         'artist': artist_name,
                         'track': track_name,
