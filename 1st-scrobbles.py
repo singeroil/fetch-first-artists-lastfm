@@ -45,9 +45,9 @@ BATCH_SIZE = 5       # Optimized for 5 concurrent page requests
 BATCH_DELAY = 2      # Reduced delay between batches for faster fetching
 
 
-# Generate the filename with latest scrobble timestamp
-def generate_filename(username, latest_timestamp):
-    return f"{username}_1st_scrobbles_{latest_timestamp}.xlsx"
+# Generate the filename without the timestamp
+def generate_filename(username):
+    return f"{username}_1st_scrobbles.xlsx"
 
 
 async def fetch_page(session, url, page, retries=0):
@@ -92,11 +92,8 @@ async def fetch_in_batches(session, url, total_pages):
 
 
 # Fetch scrobbles asynchronously
-async def get_scrobbles(username, limit=200, from_timestamp=None):
+async def get_scrobbles(username, limit=200):
     url = f"https://ws.audioscrobbler.com/2.0/?method=user.getRecentTracks&user={username}&api_key={API_KEY}&format=json&limit={limit}"
-    
-    if from_timestamp:
-        url += f"&from={from_timestamp}"  # Fetch from specific timestamp if provided
     
     async with aiohttp.ClientSession() as session:
         first_page = await fetch_page(session, url, 1)
@@ -126,15 +123,16 @@ async def get_scrobbles(username, limit=200, from_timestamp=None):
                     album = track.get('album', {})
                     date = track.get('date', {})
 
-                    # Ensure artist, album, and date are dictionaries before accessing keys
                     artist_name = artist.get('#text', 'Unknown') if isinstance(artist, dict) else 'Unknown'
                     track_name = track.get('name', 'Unknown')
                     album_name = album.get('#text', 'Unknown') if isinstance(album, dict) else 'Unknown'
-                    scrobble_date = int(date.get('uts', 0)) if isinstance(date, dict) else 0
 
-                    # Add debug logging in case of issues
-                    if not isinstance(artist_name, str) or not isinstance(track_name, str) or not isinstance(album_name, str):
-                        logging.error(f"Unexpected type for artist, track, or album. Artist: {artist_name}, Track: {track_name}, Album: {album_name}")
+                    # Improved date handling
+                    if 'uts' in date and date['uts'].isdigit():
+                        scrobble_date = int(date['uts'])
+                    else:
+                        logging.warning(f"Invalid or missing date for track: {track_name} by {artist_name}")
+                        scrobble_date = None  # Use None for invalid/missing date
                     
                     all_scrobbles.append({
                         'artist': artist_name,
@@ -146,12 +144,6 @@ async def get_scrobbles(username, limit=200, from_timestamp=None):
         return all_scrobbles
 
 
-# Remove the caching for async operations and use it with async properly.
-async def cache_scrobbles(username, limit=200, from_timestamp=None):
-    # Fetch scrobbles asynchronously
-    return await get_scrobbles(username, limit, from_timestamp)
-
-
 def get_first_scrobbles_dates(scrobbles):
     artist_first_scrobbles = {}
 
@@ -161,7 +153,7 @@ def get_first_scrobbles_dates(scrobbles):
         track = scrobble['track']
         album = scrobble['album']
 
-        if artist not in artist_first_scrobbles or scrobble_date < artist_first_scrobbles[artist]['date']:
+        if artist not in artist_first_scrobbles or (scrobble_date is not None and scrobble_date < artist_first_scrobbles[artist]['date']):
             artist_first_scrobbles[artist] = {
                 'date': scrobble_date,
                 'track': track,
@@ -182,12 +174,16 @@ def save_to_excel(artist_first_scrobbles, username, file_like_object):
     rows = []
     local_tz = get_localzone()
 
-    artist_first_scrobbles = dict(sorted(artist_first_scrobbles.items(), key=lambda item: item[1]['date']))
+    artist_first_scrobbles = dict(sorted(artist_first_scrobbles.items(), key=lambda item: item[1]['date'] or 0))
 
     for idx, (artist, details) in enumerate(artist_first_scrobbles.items(), start=1):
-        utc_date = datetime.fromtimestamp(details['date'], tz=timezone.utc)
-        local_date = utc_date.astimezone(local_tz)
-        readable_date = local_date.strftime('%Y-%m-%d %H:%M:%S')
+        scrobble_date = details['date']
+        if scrobble_date is not None:
+            utc_date = datetime.fromtimestamp(scrobble_date, tz=timezone.utc)
+            local_date = utc_date.astimezone(local_tz)
+            readable_date = local_date.strftime('%Y-%m-%d %H:%M:%S')
+        else:
+            readable_date = 'Unknown'
 
         rows.append([
             clean_value(idx),
@@ -216,7 +212,6 @@ async def main():
 
     # User input fields
     username = st.text_input("Enter your Last.fm username", "")
-    from_timestamp = st.text_input("Enter start timestamp (optional):", "")
 
     if username:
         # Small triangle button for fetching scrobbles
@@ -224,11 +219,8 @@ async def main():
             with st.spinner(''):
                 try:
                     # Fetch scrobbles using cache
-                    all_scrobbles = await cache_scrobbles(username, from_timestamp=from_timestamp or None)
+                    all_scrobbles = await get_scrobbles(username)
                     artist_scrobbles = get_first_scrobbles_dates(all_scrobbles)
-
-                    # Get the latest scrobble's timestamp for filename
-                    latest_timestamp = max([details['date'] for details in artist_scrobbles.values() if isinstance(details, dict) and 'date' in details and isinstance(details['date'], int)])
 
                     output = BytesIO()
                     save_to_excel(artist_scrobbles, username, output)
@@ -237,7 +229,7 @@ async def main():
                     st.download_button(
                         label="Download as Excel",
                         data=output,
-                        file_name=generate_filename(username, latest_timestamp),
+                        file_name=generate_filename(username),
                         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                     )
 
@@ -245,5 +237,5 @@ async def main():
                     st.error(f"Error fetching data: {str(e)}")
 
 
-# Streamlit requires a running event loop, no need for asyncio.run()
+# Run the Streamlit application without managing the event loop manually
 asyncio.run(main())
