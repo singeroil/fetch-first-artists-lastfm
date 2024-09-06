@@ -146,10 +146,11 @@ async def get_scrobbles(username, limit=200, from_timestamp=None):
         return all_scrobbles
 
 
-# Caching the result of the async function after it is fetched
+# Cache the serialized data after the async function is awaited
 @st.cache_data(ttl=86400)  # Cache for 24 hours (86400 seconds)
-async def get_cached_scrobbles(username, limit=200, from_timestamp=None):
-    return await get_scrobbles(username, limit, from_timestamp)
+def cache_scrobbles(username, limit=200, from_timestamp=None):
+    # Run the async task and return the result
+    return asyncio.run(get_scrobbles(username, limit, from_timestamp))
 
 
 def get_first_scrobble_dates(scrobbles):
@@ -223,7 +224,7 @@ async def main():
         if st.button("Fetch Now ▼"):
             with st.spinner(''):
                 try:
-                    all_scrobbles = await get_cached_scrobbles(username, from_timestamp=from_timestamp or None)
+                    all_scrobbles = cache_scrobbles(username, from_timestamp=from_timestamp or None)
                     artist_scrobbles = get_first_scrobble_dates(all_scrobbles)
 
                     # Get the latest scrobble's timestamp for filename
