@@ -132,6 +132,10 @@ async def get_scrobbles(username, limit=200, from_timestamp=None):
                     album_name = album.get('#text', 'Unknown') if isinstance(album, dict) else 'Unknown'
                     scrobble_date = int(date.get('uts', 0)) if isinstance(date, dict) else 0
 
+                    # Add debug logging in case of issues
+                    if not isinstance(artist_name, str) or not isinstance(track_name, str) or not isinstance(album_name, str):
+                        logging.error(f"Unexpected type for artist, track, or album. Artist: {artist_name}, Track: {track_name}, Album: {album_name}")
+                    
                     all_scrobbles.append({
                         'artist': artist_name,
                         'track': track_name,
@@ -144,8 +148,8 @@ async def get_scrobbles(username, limit=200, from_timestamp=None):
 
 # Caching the result of the async function after it is fetched
 @st.cache_data(ttl=86400)  # Cache for 24 hours (86400 seconds)
-def get_cached_scrobbles(username, limit=200, from_timestamp=None):
-    return asyncio.run(get_scrobbles(username, limit, from_timestamp))
+async def get_cached_scrobbles(username, limit=200, from_timestamp=None):
+    return await get_scrobbles(username, limit, from_timestamp)
 
 
 def get_first_scrobble_dates(scrobbles):
@@ -167,7 +171,6 @@ def get_first_scrobble_dates(scrobbles):
     return artist_first_scrobbles
 
 
-# Updated clean_value function to always handle strings properly
 def clean_value(value):
     """Helper function to clean and safely convert values for Excel output."""
     if value is None:
@@ -220,7 +223,7 @@ async def main():
         if st.button("Fetch Now ▼"):
             with st.spinner(''):
                 try:
-                    all_scrobbles = get_cached_scrobbles(username, from_timestamp=from_timestamp or None)
+                    all_scrobbles = await get_cached_scrobbles(username, from_timestamp=from_timestamp or None)
                     artist_scrobbles = get_first_scrobble_dates(all_scrobbles)
 
                     # Get the latest scrobble's timestamp for filename
