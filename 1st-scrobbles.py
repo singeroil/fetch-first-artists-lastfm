@@ -167,13 +167,12 @@ def get_first_scrobble_dates(scrobbles):
     return artist_first_scrobbles
 
 
+# Updated clean_value function to always handle strings properly
 def clean_value(value):
-    """Helper function to clean values for Excel output."""
+    """Helper function to clean and safely convert values for Excel output."""
     if value is None:
-        return ''
-    if isinstance(value, str):
-        return value.strip()  # Remove leading/trailing spaces
-    return value
+        return ''  # Replace None with empty string
+    return str(value).strip()  # Convert all values to strings and remove leading/trailing spaces
 
 
 def save_to_excel(artist_first_scrobbles, username, file_like_object):
@@ -202,7 +201,11 @@ def save_to_excel(artist_first_scrobbles, username, file_like_object):
         df[column] = df[column].apply(clean_value)
     
     # Write to Excel
-    df.to_excel(file_like_object, index=False)
+    with pd.ExcelWriter(file_like_object, engine='xlsxwriter') as writer:
+        df.to_excel(writer, index=False)
+
+    # Ensure the buffer is ready to be read
+    file_like_object.seek(0)
 
 
 async def main():
@@ -225,8 +228,7 @@ async def main():
 
                     output = BytesIO()
                     save_to_excel(artist_scrobbles, username, output)
-                    output.seek(0)
-
+                    
                     # Provide download button with dynamic filename
                     st.download_button(
                         label="Download as Excel",
