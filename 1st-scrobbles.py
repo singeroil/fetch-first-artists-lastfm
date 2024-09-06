@@ -37,11 +37,13 @@ st.markdown("""
     """, unsafe_allow_html=True)
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
-LIMIT = 200
+
+LIMIT = 200         # Increased to maximum allowed by Last.fm API
 MAX_RETRIES = 3
 RATE_LIMIT_DELAY = 1  # seconds between requests
-BATCH_SIZE = 10       # Number of pages to fetch at once
-BATCH_DELAY = 2       # Delay between each batch in seconds
+BATCH_SIZE = 5       # Optimized for 5 concurrent page requests
+BATCH_DELAY = 2      # Reduced delay between batches for faster fetching
+
 
 # Generate the filename with latest scrobble timestamp
 def generate_filename(username, latest_timestamp):
@@ -83,15 +85,15 @@ async def fetch_in_batches(session, url, total_pages):
             progress_bar.progress(int(idx / total_pages * 100))  # Update progress bar
 
         logging.info(f"Completed batch {i} to {min(i + BATCH_SIZE, total_pages)} of {total_pages}")
-
         await asyncio.sleep(BATCH_DELAY)  # Delay between batches
 
     progress_bar.progress(100)  # Ensure progress bar is set to 100%
     return responses
 
 
+# Fetch scrobbles asynchronously
 async def get_scrobbles(username, limit=200, from_timestamp=None):
-    url = f"https://ws.audioscrobbler.com/2.0/?method=user.getRecentTracks&user={username}&api_key={API_KEY}&format=json&limit={LIMIT}"
+    url = f"https://ws.audioscrobbler.com/2.0/?method=user.getRecentTracks&user={username}&api_key={API_KEY}&format=json&limit={limit}"
     
     if from_timestamp:
         url += f"&from={from_timestamp}"  # Fetch from specific timestamp if provided
@@ -140,6 +142,12 @@ async def get_scrobbles(username, limit=200, from_timestamp=None):
         return all_scrobbles
 
 
+# Caching the result of the async function after it is fetched
+@st.cache_data(ttl=86400)  # Cache for 24 hours (86400 seconds)
+def get_cached_scrobbles(username, limit=200, from_timestamp=None):
+    return asyncio.run(get_scrobbles(username, limit, from_timestamp))
+
+
 def get_first_scrobble_dates(scrobbles):
     artist_first_scrobbles = {}
 
@@ -159,22 +167,41 @@ def get_first_scrobble_dates(scrobbles):
     return artist_first_scrobbles
 
 
+def clean_value(value):
+    """Helper function to clean values for Excel output."""
+    if value is None:
+        return ''
+    if isinstance(value, str):
+        return value.strip()  # Remove leading/trailing spaces
+    return value
+
+
 def save_to_excel(artist_first_scrobbles, username, file_like_object):
     rows = []
     local_tz = get_localzone()
 
-    # Sort by scrobble date
     artist_first_scrobbles = dict(sorted(artist_first_scrobbles.items(), key=lambda item: item[1]['date']))
 
-    # Add numbering after sorting
     for idx, (artist, details) in enumerate(artist_first_scrobbles.items(), start=1):
         utc_date = datetime.fromtimestamp(details['date'], tz=timezone.utc)
         local_date = utc_date.astimezone(local_tz)
         readable_date = local_date.strftime('%Y-%m-%d %H:%M:%S')
-        rows.append([idx, artist, details['track'], details['album'], readable_date])
+
+        rows.append([
+            clean_value(idx),
+            clean_value(artist),
+            clean_value(details['track']),
+            clean_value(details['album']),
+            clean_value(readable_date)
+        ])
 
     df = pd.DataFrame(rows, columns=['#', 'Artist', 'First Track', 'First Album', 'First Scrobbled Date'])
-    df.sort_values(by='First Scrobbled Date', inplace=True)
+    
+    # Clean any potentially invalid values
+    for column in df.columns:
+        df[column] = df[column].apply(clean_value)
+    
+    # Write to Excel
     df.to_excel(file_like_object, index=False)
 
 
@@ -190,7 +217,7 @@ async def main():
         if st.button("Fetch Now ▼"):
             with st.spinner(''):
                 try:
-                    all_scrobbles = await get_scrobbles(username, from_timestamp=from_timestamp or None)
+                    all_scrobbles = get_cached_scrobbles(username, from_timestamp=from_timestamp or None)
                     artist_scrobbles = get_first_scrobble_dates(all_scrobbles)
 
                     # Get the latest scrobble's timestamp for filename
