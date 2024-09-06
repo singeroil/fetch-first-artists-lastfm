@@ -146,12 +146,10 @@ async def get_scrobbles(username, limit=200, from_timestamp=None):
         return all_scrobbles
 
 
-# Cache the serialized data after the async function is awaited
-@st.cache_data(ttl=86400)  # Cache for 24 hours (86400 seconds)
-def cache_scrobbles(username, limit=200, from_timestamp=None):
-    # Use asyncio event loop for async tasks in an already running event loop
-    loop = asyncio.get_event_loop()
-    return loop.run_until_complete(get_scrobbles(username, limit, from_timestamp))
+# Remove the caching for async operations and use it with async properly.
+async def cache_scrobbles(username, limit=200, from_timestamp=None):
+    # Fetch scrobbles asynchronously
+    return await get_scrobbles(username, limit, from_timestamp)
 
 
 def get_first_scrobbles_dates(scrobbles):
@@ -226,7 +224,7 @@ async def main():
             with st.spinner(''):
                 try:
                     # Fetch scrobbles using cache
-                    all_scrobbles = cache_scrobbles(username, from_timestamp=from_timestamp or None)
+                    all_scrobbles = await cache_scrobbles(username, from_timestamp=from_timestamp or None)
                     artist_scrobbles = get_first_scrobbles_dates(all_scrobbles)
 
                     # Get the latest scrobble's timestamp for filename
@@ -247,5 +245,5 @@ async def main():
                     st.error(f"Error fetching data: {str(e)}")
 
 
-if __name__ == "__main__":
-    asyncio.run(main())
+# Streamlit requires a running event loop, no need for asyncio.run()
+asyncio.run(main())
