@@ -6,17 +6,22 @@ This Python script fetches the first scrobbled date for each unique artist from 
 
 ## Features
 
-- Fetches scrobble data asynchronously.
-- Processes and extracts the first scrobbled date for each artist.
-- Saves results to an Excel file in the `result/` directory.
-- Handles API rate limiting and retries on failure.
+- Fetches scrobble data asynchronously from Last.fm using their API.
+- Processes and extracts the **first scrobble date** for each artist in the user's listening history.
+- Saves results to an **Excel file** in the `result/` directory with the filename format `username_1st_scrobbles_<timestamp>.xlsx`.
+- Automatically handles **API rate limiting**, retries on failure, and fetches data in batches.
+- Provides parameters such as **MAX_RETRIES**, **LIMIT**, **RATE_LIMIT_DELAY**, **BATCH_SIZE**, and **BATCH_DELAY**, that can be adjusted to control the frequency and volume of API requests.
+- Filters out invalid scrobble dates (e.g., "now playing" tracks) and ensures no scrobbles before the user's registration date are processed.
+- Provides detailed logging for any errors, including problematic data rows that cause issues during the writing process to Excel.
+- Removes **non-printable ASCII control characters** to ensure Excel compatibility, while still preserving characters from other languages.
 
 ## Requirements
 
 - Python 3.8 or higher
-- `aiohttp`
-- `pandas`
-- `tzlocal`
+- `aiohttp`: For asynchronous HTTP requests.
+- `pandas`: For processing and writing data to Excel.
+- `tzlocal`: For converting timestamps to the user's local time.
+- `openpyxl`: (optional) Required if you want to work with `.xlsx` files in Excel format.
 
 ## Installation
 
@@ -59,15 +64,14 @@ This Python script fetches the first scrobbled date for each unique artist from 
 
 3. **Check the `result/` directory for the generated Excel file.**
 
-## Example
+## Result Sample
 
-```sh
-Enter Last.fm username: your_username
-Fetching scrobbles...
-Processing scrobbles...
-Saving to Excel...
-Data saved to 'result/your_username_1st_scrobbles.xlsx
-```
+| #  | Artist               | First Track                             | First Album                               | First Scrobbled Date   |
+|----|----------------------|-----------------------------------------|-------------------------------------------|------------------------|
+| 1  | Coheed and Cambria    | In Keeping Secrets of Silent Earth: 3   | Live At The Starland Ballroom             | 2009-06-20 11:42:57    |
+| 2  | Soko                 | The Dandy Cowboys                       | Not Sokute                                | 2009-06-20 12:49:14    |
+| 3  | I Was a Cub Scout     | Save Your Wishes                        | I Want You to Know That There Is Always Hope | 2009-06-20 13:19:40    |
+| ...| ...                  | ...                                     | ...                                       | ...                    |
 
 ## Notes
 
@@ -81,4 +85,4 @@ Data saved to 'result/your_username_1st_scrobbles.xlsx
 
 ## License
 
-	This project is licensed under the MIT License. See the LICENSE file for details.
+	This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
