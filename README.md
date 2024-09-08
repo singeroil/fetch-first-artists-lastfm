@@ -82,7 +82,3 @@ This Python script fetches the first scrobbled date for each unique artist from 
 ## Contributing
 
 	Feel free to open issues or submit pull requests for improvements or bug fixes.
-
-## License
-
-	This project is licensed under the MIT License. See the [LICENSE](./LICENSE) file for details.
