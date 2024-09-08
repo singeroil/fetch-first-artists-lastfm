@@ -85,4 +85,4 @@ This Python script fetches the first scrobbled date for each unique artist from 
 
 ## License
 
-	This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
+	This project is licensed under the MIT License. See the [LICENSE](./LICENSE) file for details.
