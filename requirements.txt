@@ -1,3 +1,4 @@
 aiohttp
 pandas
 tzlocal
+openpyxl
